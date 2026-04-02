@@ -505,7 +505,7 @@
                                 </div>
 
                                 <!-- Type Selector -->
-                                <select v-model="block.type" class="custom-select w-[140px] shrink-0 h-8 bg-[#27272a] text-[#e4e4e7] text-xs px-3 rounded-lg outline-none transition cursor-pointer">
+                                <select v-model="block.type" @change="handleBlockTypeChange(block)" class="custom-select w-[140px] shrink-0 h-8 bg-[#27272a] text-[#e4e4e7] text-xs px-3 rounded-lg outline-none transition cursor-pointer">
                                     <option v-for="opt in blockTypeOptions" :key="opt.value" :value="opt.value">{{ opt.label }}</option>
                                 </select>
 
@@ -555,7 +555,31 @@
                         </div>
 
                         <!-- Textarea -->
-                        <div class="p-0">
+                        <div v-if="block.type === 'summary'" class="grid grid-cols-1 lg:grid-cols-2 gap-px bg-[#27272a] overflow-hidden rounded-b-xl">
+                            <div class="bg-[#121214]">
+                                <div class="px-3 pt-3 pb-1 text-[10px] font-bold tracking-wider text-[#71717a] font-mono">SUMMARY INPUT</div>
+                                <textarea
+                                    v-model="block.versions[block.activeVersionIndex].text"
+                                    @keydown.stop
+                                    spellcheck="false"
+                                    class="w-full bg-transparent text-[#e4e4e7] px-3 pt-2 pb-3 outline-none resize-none font-mono text-sm leading-relaxed placeholder-[#71717a] transition-all duration-150 ease-out"
+                                    :class="focusedBlock === index ? 'h-[300px] overflow-y-auto' : 'h-[140px] overflow-y-auto'"
+                                    :placeholder="getPlaceholder(block.type)"
+                                ></textarea>
+                            </div>
+                            <div class="bg-[#121214] border-t border-[#27272a] lg:border-t-0 lg:border-l">
+                                <div class="px-3 pt-3 pb-1 text-[10px] font-bold tracking-wider text-[#71717a] font-mono">SUMMARY PROMPT</div>
+                                <textarea
+                                    v-model="block.summaryPrompt"
+                                    @keydown.stop
+                                    spellcheck="false"
+                                    class="w-full bg-transparent text-[#e4e4e7] px-3 pt-2 pb-3 outline-none resize-none font-mono text-sm leading-relaxed placeholder-[#71717a] transition-all duration-150 ease-out"
+                                    :class="focusedBlock === index ? 'h-[300px] overflow-y-auto' : 'h-[140px] overflow-y-auto'"
+                                    placeholder="Prompt used to ask Codex for a concise state summary..."
+                                ></textarea>
+                            </div>
+                        </div>
+                        <div v-else class="p-0">
                             <textarea 
                                 v-model="block.versions[block.activeVersionIndex].text" 
                                 @keydown.stop
@@ -666,6 +690,9 @@
                 <!-- Hollow shield implemented perfectly with SVG -->
                 <svg xmlns="http://www.w3.org/2000/svg" class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
             </button>
+            <button @click="addBlock('summary')" class="h-8 px-3 rounded-full bg-[#27272a] hover:bg-[#3f3f46] text-[#a1a1aa] hover:text-[#e4e4e7] flex items-center justify-center transition-colors shadow-md text-[10px] font-bold tracking-wider" title="Add Summary Handoff">
+                SUMMARY
+            </button>
         </div>
 
         <!-- Separator -->
@@ -720,6 +747,7 @@
         cube: { nodes: [{ tag: 'path', attrs: { d: 'm12 3 8 4.5v9L12 21l-8-4.5v-9L12 3Zm0 0v18M4 7.5l8 4.5 8-4.5' } }] },
         bullseye: { nodes: [{ tag: 'circle', attrs: { cx: '12', cy: '12', r: '8' } }, { tag: 'circle', attrs: { cx: '12', cy: '12', r: '4' } }, { tag: 'circle', attrs: { cx: '12', cy: '12', r: '1' } }] },
         code: { nodes: [{ tag: 'path', attrs: { d: 'm8 8-4 4 4 4M16 8l4 4-4 4M14 4l-4 16' } }] },
+        summary: { nodes: [{ tag: 'path', attrs: { d: 'M4 6h16M4 12h10M4 18h7' } }, { tag: 'path', attrs: { d: 'M17 10v8M13 14h8' } }] },
         check: { nodes: [{ tag: 'path', attrs: { d: 'm5 12 5 5L20 7' } }] },
         copy: { nodes: [{ tag: 'rect', attrs: { x: '9', y: '9', width: '11', height: '11', rx: '2' } }, { tag: 'path', attrs: { d: 'M15 9V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v7a2 2 0 0 0 2 2h3' } }] },
         'external-link': { nodes: [{ tag: 'path', attrs: { d: 'M14 5h5v5M10 14 19 5M19 14v5H5V5h5' } }] }
@@ -890,6 +918,7 @@ If a future Codex creates or updates either document, it must make both document
                 { value: 'task', label: 'Task (Instruction)' },
                 { value: 'code', label: 'Code Snippet' },
                 { value: 'constraints', label: 'Constraints' },
+                { value: 'summary', label: 'Summary Handoff' },
                 { value: 'text', label: 'Plain Text' }
             ];
             const rolePresetOptions = computed(() => presetRoles.map(p => ({ label: p.name, value: p.content })));
@@ -932,13 +961,22 @@ If a future Codex creates or updates either document, it must make both document
                 return `${baseUrl}${chatCompletionsPath}`;
             });
 
+            const summaryPromptDefault = `Stop making further changes.
+
+Summarize the current state of the task:
+- what has been completed
+- what remains to be done
+
+Keep it concise. Do not generate future prompts.`;
+
             const createBlock = (type, content = '') => ({
                 id: generateUniqueId(),
                 type,
                 isProcessing: false,
                 versions:[{ id: Date.now() + Math.random(), name: 'Original', text: content }],
                 activeVersionIndex: 0,
-                selectedPreset: content
+                selectedPreset: content,
+                summaryPrompt: type === 'summary' ? summaryPromptDefault : ''
             });
 
             const blocks = ref([
@@ -1013,7 +1051,10 @@ If a future Codex creates or updates either document, it must make both document
                     isProcessing: false,
                     versions,
                     activeVersionIndex,
-                    selectedPreset: typeof candidate.selectedPreset === 'string' ? candidate.selectedPreset : versions[activeVersionIndex].text
+                    selectedPreset: typeof candidate.selectedPreset === 'string' ? candidate.selectedPreset : versions[activeVersionIndex].text,
+                    summaryPrompt: type === 'summary'
+                        ? (typeof candidate.summaryPrompt === 'string' && candidate.summaryPrompt.trim() ? candidate.summaryPrompt : summaryPromptDefault)
+                        : ''
                 };
             };
             const normalizeSettings = (candidate) => ({
@@ -1170,10 +1211,13 @@ If a future Codex creates or updates either document, it must make both document
             };
 
             const getWrapper = (type) => ({'text':['', ''], 'role':['<system_role>', '</system_role>'], 'context':['<context>', '</context>'], 'task':['<task>', '</task>'], 'code':['<code>', '</code>'], 'constraints':['<constraints>', '</constraints>']}[type] ||['', '']);
-            const getPlaceholder = (type) => ({role: 'System Persona (e.g., You are a strict coding architect...)', context: 'Paste documents, data, or previous conversation here...', task: 'The direct instruction (e.g., "Refactor this code")...', code: 'Paste source code here...', constraints: 'Negative constraints (e.g., "No external libraries")...'}[type] || 'Content...');
+            const getPlaceholder = (type) => ({role: 'System Persona (e.g., You are a strict coding architect...)', context: 'Paste documents, data, or previous conversation here...', task: 'The direct instruction (e.g., "Refactor this code")...', code: 'Paste source code here...', constraints: 'Negative constraints (e.g., "No external libraries")...', summary: 'Paste the concise summary returned by Codex here...'}[type] || 'Content...');
             const renderBlockText = (block) => {
                 const text = block.versions[block.activeVersionIndex].text.trim();
                 if (!text) return '';
+                if (block.type === 'summary') {
+                    return `Copy this into a new Codex session:\n\nCurrent task state:\n${text}\n\nContinue completing the remaining work.`;
+                }
                 const [start, end] = getWrapper(block.type);
                 return start || end ? `${start}\n${text}\n${end}` : text;
             };
@@ -1185,6 +1229,14 @@ If a future Codex creates or updates either document, it must make both document
                 if (societyPreset && val === societyPreset.content) {
                     settings.value.addCoT = true; settings.value.cotMode = 'society';
                     animateCot.value = true; setTimeout(() => { animateCot.value = false; }, 1500);
+                }
+            };
+            const handleBlockTypeChange = (block) => {
+                if (block.type === 'summary' && !block.summaryPrompt.trim()) {
+                    block.summaryPrompt = summaryPromptDefault;
+                }
+                if (block.type !== 'role' && block.type !== 'constraints') {
+                    block.selectedPreset = '';
                 }
             };
 
@@ -1434,7 +1486,7 @@ If a future Codex creates or updates either document, it must make both document
             return {
                 apiKey, saveKey, blocks, settings, finalPrompt, models, copied, outputTextarea, focusedBlock,
                 addBlock, removeBlock, translateBlock, optimizeBlock, generateRoleFromTask, switchVersion,
-                copyPrompt, downloadPrompt, toggleScroll, isScrolledDown, getWrapper, getPlaceholder, loadRolePreset,
+                copyPrompt, downloadPrompt, toggleScroll, isScrolledDown, getWrapper, getPlaceholder, loadRolePreset, handleBlockTypeChange,
                 moveBlockUp, moveBlockDown, moveBlockTop, moveBlockBottom,
                 translationOptions, optimizationOptions, cotOptions, blockTypeOptions, rolePresetOptions, constraintPresetOptions,
                 tokenCount, estimatedCost, getBlockCost, customPrice, handleGlobalClick, activateBlock, animateCot, statusMessage,
