@@ -131,16 +131,6 @@ The app is suitable for static hosting, including:
 
 For public deployment, proxy AI requests through your own backend if you do not want browser clients to interact with model endpoints directly.
 
-## Recommended GitHub positioning
-
-If you are publishing this repository publicly, the README should do three things clearly:
-
-- explain the product in one sentence
-- show what is actually usable today
-- state the security limitation around direct browser API usage
-
-That matters more than listing every paper detail up front. For GitHub visitors, practical clarity converts better than a long research-style introduction.
-
 ## License
 
 MIT © 2026 Yu-Cheng Wei
