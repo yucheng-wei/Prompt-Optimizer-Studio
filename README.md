@@ -2,85 +2,144 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
 
-Browser-based editor for building structured LLM prompts using tagged blocks (role, task, context, constraints, code).  
-The tool assembles the blocks into a final prompt and supports several research-verified formatting techniques that improve model behavior.
+Browser-based prompt editor for building structured LLM prompts from reusable tagged blocks such as `<role>`, `<task>`, `<context>`, and `<constraints>`.
 
-→ **Live demo**: https://yucheng-wei.github.io/Prompt-Optimizer-Studio/
+It is designed for people who want more control than a plain textarea: you can compose prompts block by block, reorder sections, apply reasoning scaffolds, estimate token cost, and export the final result as a clean prompt file.
 
----
+Live demo: https://yucheng-wei.github.io/Prompt-Optimizer-Studio/
 
-## Core idea
+## Why this project exists
 
-Instead of writing one long prompt, you create small labeled blocks that are later wrapped in consistent XML-style tags (`<role>`, `<task>`, `<context>`, etc.).  
-This structure makes it easier to reorder parts, apply presets, translate/optimize individual sections, and activate different reasoning scaffolds with toggles.
+Large prompts often become hard to maintain once they mix persona, task instructions, examples, constraints, and code snippets in one long paragraph. This project treats prompts as modular parts, then assembles them into a consistent final output.
 
-## Main features
+That makes it easier to:
 
-- **Block editor** — add, reorder, delete blocks of different types  
-  - `<role>` — system persona / instructions  
-  - `<task>` — main instruction  
-  - `<context>` — documents, data, examples  
-  - `<constraints>` — rules, format requirements, guardrails  
-  - `<code_context>` — source code snippets  
-  - plain text fallback
+- rearrange prompt structure without rewriting everything
+- apply formatting strategies consistently
+- optimize or translate only one section at a time
+- compare different reasoning scaffolds on the same base prompt
 
-- **One-click formatting strategies** (toggles)
-  - **Prompt Repetition** — repeats every `<task>` block at the end → improves instruction following in non-reasoning settings without changing output length or latency  
-  - **Chain-of-Thought variants** — appends different final instructions  
-    - Classical: "Let's think step-by-step."  
-    - Agentic: strict Plan → Check → Execute loop  
-    - Chain-of-Table: table-first reasoning (data-heavy tasks)  
-    - **Society of Thought**: simulates multi-perspective debate (detailed below)  
-  - **Compact whitespace** — collapses multiple blank lines for cleaner token usage
+## Features
 
-- **AI helpers** (using your SiliconFlow API key)
-  - Translate block to English (Hunyuan-MT-7B or similar)  
-  - Rewrite block for clarity & structure (DeepSeek-R1-Distill or Qwen2.5-Coder)  
-  - Auto-generate role from a task description
+### Structured block editor
 
-- Built-in presets  
-  - Role examples: Coding Specialist, Academic Research Assistant, Senior Technical Writer, Society of Thought starter  
-  - Constraint examples: strict grounding, no yapping, academic citation style
+Create, edit, reorder, and delete blocks with dedicated wrappers:
 
-- Final output pane — live preview, copy, download as .txt or .md  
-- Token & cost estimation (adjustable $/1M token rate)
+- `<role>` for system persona or high-level behavior
+- `<task>` for the main instruction
+- `<context>` for references, documents, examples, or data
+- `<constraints>` for output requirements and guardrails
+- `<code_context>` for source code snippets
+- plain text blocks when tagging is unnecessary
 
-Everything runs in the browser. No data leaves your machine except the API calls you explicitly trigger.
+### Prompt assembly controls
 
-## Research techniques & measured effects
+- live final prompt preview
+- compact whitespace mode to reduce unnecessary blank lines
+- one-click copy
+- export as `.txt` or `.md`
 
-The tool exposes three techniques backed by recent papers. You can turn them on/off independently to compare results.
+### Research-inspired formatting toggles
 
-1. **Prompt Repetition**  
-   Paper: Leviathan et al. (2025) — [arXiv:2512.14982](https://arxiv.org/abs/2512.14982)  
-   Effect: Repeating the full input prompt (without reasoning / CoT) improves accuracy on many models (Gemini, GPT-4o-mini, Claude 3 Haiku/Sonnet, DeepSeek-V3) across benchmarks (ARC, MMLU-Pro, GSM8K, MATH, custom pattern tasks).  
-   Win rate: 47/70 model-benchmark pairs, 0 losses (statistically significant in many cases).  
-   Cost: zero extra generation tokens, zero measured latency increase in most setups.
+- Prompt Repetition
+  Repeats task blocks at the end of the prompt to reinforce instruction following.
+- Chain-of-Thought variants
+  Supports classic step-by-step prompting, agentic plan/check/execute scaffolding, and table-first reasoning.
+- Society of Thought scaffold
+  Adds a multi-perspective reasoning pattern with verifier, strategist, and auditor-style roles inside a thinking scaffold.
 
-2. **Chain-of-Thought (classic version)**  
-   Paper: Kojima et al. (2022) — [arXiv:2205.11916](https://arxiv.org/abs/2205.11916)  
-   Effect: Adding "Let's think step-by-step" (or variants) at the end dramatically lifts zero-shot / few-shot reasoning performance on arithmetic, commonsense, and symbolic tasks. Remains one of the simplest and most reliable baselines.
+### AI helpers
 
-3. **Society of Thought** (main differentiator)  
-   Paper: Kim et al. (2026) — [arXiv:2601.10825](https://arxiv.org/abs/2601.10825)  
-   Core claim: Leading reasoning models (DeepSeek-R1, QwQ-32B, o-series style) achieve higher performance **not** just from longer thinking, but from implicitly simulating multi-agent debate — diverse internal perspectives with different personality traits (Big Five), expertise, and conflict/resolution patterns.  
-   Measured effects:  
-   - Reasoning models show significantly higher perspective/personality diversity than instruction-tuned baselines.  
-   - Mechanistic interpretability reveals conversational dynamics (questioning, perspective shift, disagreement, reconciliation).  
-   - RL experiments: rewarding only final accuracy causes base models to spontaneously increase conversational behaviors.  
-   - Fine-tuning with explicit conversation scaffolding accelerates reasoning gains compared to monologue-style CoT training.  
-   Tool implementation: fixed 3-persona debate scaffold (Meticulous Verifier, Creative Strategist, Skeptical Auditor) inside `<think>` tags, no fixed turn order, disagreement encouraged, consensus required before final answer.
+Optional AI actions can be triggered per block:
+
+- translate a block to English
+- rewrite a block for clarity and structure
+- generate a role block from a task description
+
+The current implementation supports:
+
+- browser-direct SiliconFlow mode
+- proxy mode for safer deployment
+- local-only mode with AI helpers disabled
+
+## Research basis
+
+This project exposes several prompt-formatting ideas that have been discussed in recent prompting literature:
+
+1. Prompt Repetition  
+   Leviathan et al. (2025)  
+   https://arxiv.org/abs/2512.14982
+
+2. Zero-shot Chain-of-Thought prompting  
+   Kojima et al. (2022)  
+   https://arxiv.org/abs/2205.11916
+
+3. Society of Thought  
+   Kim et al. (2026)  
+   https://arxiv.org/abs/2601.10825
+
+This tool does not claim to reproduce paper results exactly. It provides practical UI switches that let you test related formatting patterns in your own workflow.
+
+## Privacy
+
+- prompt editing happens locally in the browser
+- custom presets are stored in `localStorage`
+- API keys are not persisted to browser storage in direct mode; they stay in current tab memory only
+- data leaves your machine only when you explicitly use an AI helper that sends a request to a model endpoint
+
+If you want production-grade safety, use a backend proxy instead of exposing provider access from the front end.
 
 ## Tech stack
 
-- Vue 3 (Composition API)  
-- Tailwind CSS  
-- Font Awesome  
-- localStorage only (presets & API key)
+- Vue 3 via CDN
+- single-file frontend in `index.html`
+- custom utility-style CSS
+- browser `localStorage`
 
-## Contributing
+## Project structure
 
-Ideas / PRs welcome — especially additional paper-verified scaffolds (Tree-of-Thoughts, self-consistency, etc.) or better presets.
+```text
+.
+├── index.html
+└── README.md
+```
+
+## Local usage
+
+This project is a static frontend and can be opened directly in a browser.
+
+```bash
+open index.html
+```
+
+Or serve it with any static file server:
+
+```bash
+python -m http.server 8000
+```
+
+Then open `http://localhost:8000`.
+
+## Deployment
+
+The app is suitable for static hosting, including:
+
+- GitHub Pages
+- Cloudflare Pages
+- Netlify
+- Vercel static deployment
+
+For public deployment, proxy AI requests through your own backend if you do not want browser clients to interact with model endpoints directly.
+
+## Recommended GitHub positioning
+
+If you are publishing this repository publicly, the README should do three things clearly:
+
+- explain the product in one sentence
+- show what is actually usable today
+- state the security limitation around direct browser API usage
+
+That matters more than listing every paper detail up front. For GitHub visitors, practical clarity converts better than a long research-style introduction.
 
 ## License
 
